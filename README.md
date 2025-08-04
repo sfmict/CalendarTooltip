@@ -4,7 +4,7 @@
 
 Convenient events display
 
-[![Build](https://github.com/sfmict/CalendarTooltip/workflows/Build/badge.svg)](https://github.com/sfmict/Addon-Manargl/releases) [![](https://cf.way2muchnoise.eu/full_1319775_downloads.svg)](https://www.curseforge.com/wow/addons/calendartooltip)
+[![Build](https://github.com/sfmict/CalendarTooltip/workflows/Build/badge.svg)](https://github.com/sfmict/CalendarTooltip/releases) [![](https://cf.way2muchnoise.eu/full_1319775_downloads.svg)](https://www.curseforge.com/wow/addons/calendartooltip)
 </div>
 
 ### Features:
