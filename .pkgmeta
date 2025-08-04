@@ -1,0 +1,6 @@
+package-as: CalendarTooltip
+
+enable-nolib-creation: no
+
+ignore:
+	- .*\.md$

@@ -3,7 +3,7 @@
 ## Author: sfmict
 ## Version: @project-version@
 ## IconTexture: 235436
-## Notes: Improved Calendar Management
+## Notes: Convenient events display
 ## Category-enUS: User Interface
 ## Category-deDE: Benutzerinterface
 ## Category-esES: Interfaz de usuario

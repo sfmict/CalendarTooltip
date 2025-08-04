@@ -41,9 +41,18 @@ calendar:SetScript("OnShow", function(self)
 		self.db.calendarShowDarkmoon = btn:GetChecked()
 	end)
 
+	-- RAID LOCKOUT
+	local raidLockout = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
+	raidLockout:SetPoint("TOPLEFT", darkmoon, "BOTTOMLEFT", 0, 0)
+	raidLockout:SetChecked(self.db.calendarShowLockouts)
+	raidLockout.Text:SetText(CALENDAR_FILTER_RAID_LOCKOUTS)
+	raidLockout:HookScript("OnClick", function(btn)
+		self.db.calendarShowLockouts = btn:GetChecked()
+	end)
+
 	-- WEEKLY HOLIDAYS
 	local weeklyHolidays = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
-	weeklyHolidays:SetPoint("TOPLEFT", darkmoon, "BOTTOMLEFT", 0, 0)
+	weeklyHolidays:SetPoint("TOPLEFT", raidLockout, "BOTTOMLEFT", 0, 0)
 	weeklyHolidays:SetChecked(self.db.calendarShowWeeklyHolidays)
 	weeklyHolidays.Text:SetText(CALENDAR_FILTER_WEEKLY_HOLIDAYS)
 	weeklyHolidays:HookScript("OnClick", function(btn)
@@ -59,7 +68,7 @@ calendar:SetScript("OnShow", function(self)
 		self.db.calendarShowBattlegrounds = btn:GetChecked()
 	end)
 
-	local maxWidth = math.max(holidays.Text:GetWidth(), darkmoon.Text:GetWidth(), weeklyHolidays.Text:GetWidth(), battleground.Text:GetWidth())
+	local maxWidth = math.max(holidays.Text:GetWidth(), darkmoon.Text:GetWidth(), raidLockout.Text:GetWidth(), weeklyHolidays.Text:GetWidth(), battleground.Text:GetWidth())
 
 	-- PAST
 	local past = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")

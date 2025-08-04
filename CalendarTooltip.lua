@@ -1,8 +1,9 @@
 local addon, ns = ...
 local iconStr = "|T%s:18:18:0:0:128:128:0:91:0:91|t "
 local iconStrCustom = "|T%s:18|t "
---local noIcon = "|TInterface/Icons/INV_Misc_QuestionMark:18|t "
-local noIcon = "|T235490:18|t "
+--local iconLockOut = "|T198873:18|t "
+local iconLockOut = "|T340023:18:18:2:0:32:32:0:28:0:28|t "
+local noIcon = "|TInterface/Icons/INV_Misc_QuestionMark:18|t "
 local calendar = CreateFrame("FRAME", "CalendarTooltipAddon")
 
 
@@ -33,6 +34,9 @@ function calendar:ADDON_LOADED(addonName)
 	end
 	if self.db.calendarShowDarkmoon == nil then
 		self.db.calendarShowDarkmoon = true
+	end
+	if self.db.calendarShowLockouts == nil then
+		self.db.calendarShowLockouts = true
 	end
 	if self.db.calendarShowWeeklyHolidays == nil then
 		self.db.calendarShowWeeklyHolidays = true
@@ -71,7 +75,7 @@ function calendar:setBackup()
 
 	SetCVar("calendarShowHolidays", self.db.calendarShowHolidays)
 	SetCVar("calendarShowDarkmoon", self.db.calendarShowDarkmoon)
-	SetCVar("calendarShowLockouts", "0")
+	SetCVar("calendarShowLockouts", self.db.calendarShowLockouts)
 	SetCVar("calendarShowWeeklyHolidays", self.db.calendarShowWeeklyHolidays)
 	SetCVar("calendarShowBattlegrounds", self.db.calendarShowBattlegrounds)
 end
@@ -110,7 +114,7 @@ end
 
 local function getEventKey(e)
 	local st = e.startTime
-	return ("%d:%d%.2d%.2d"):format(e.eventID, st.year, st.month, st.monthDay)
+	return ("%s:%d%.2d%.2d"):format(e.eventID, st.year, st.month, st.monthDay)
 end
 
 
@@ -203,17 +207,21 @@ function calendar:setEventList(day, order)
 				self.timeToEvent = e.t
 			end
 
-			e.title = getColoredTitle(e)
-
 			local startDate = FormatShortDate(e.startTime.monthDay, e.startTime.month)
 			if e.calendarType == "HOLIDAY" then
 				local endDate = FormatShortDate(e.endTime.monthDay, e.endTime.month)
 				e.dateStr = ("|cff80b5fd%s - %s|r"):format(startDate, endDate)
 			else
-				local inviteStatusInfo = CalendarUtil.GetCalendarInviteStatusInfo(e.inviteStatus)
-				e.inviteStatusStr = " "..inviteStatusInfo.color:WrapTextInColorCode("("..inviteStatusInfo.name..")")
+				if e.calendarType ~= "RAID_LOCKOUT" then
+					local inviteStatusInfo = CalendarUtil.GetCalendarInviteStatusInfo(e.inviteStatus)
+					e.inviteStatusStr = " "..inviteStatusInfo.color:WrapTextInColorCode("("..inviteStatusInfo.name..")")
+				elseif e.difficultyName ~= "" then
+					e.title = DUNGEON_NAME_WITH_DIFFICULTY:format(e.title, e.difficultyName)
+				end
 				e.dateStr = ("|cff80b5fd%s %s|r"):format(startDate, GameTime_GetFormattedTime(e.startTime.hour, e.startTime.minute, true))
 			end
+
+			e.title = getColoredTitle(e)
 
 			self.list[#self.list + 1] = e
 			self.list[k] = e
@@ -240,7 +248,6 @@ end
 
 
 function calendar:updateList()
-	if self.isUpdating then return end
 	self.timeToEvent = math.huge
 	self.date = C_DateAndTime.GetCurrentCalendarTime()
 	self.curTime = getCalendarTime(self.date)
@@ -291,10 +298,10 @@ end
 
 
 function calendar:setTooltip()
-	local date, order = C_DateAndTime.GetCurrentCalendarTime()
-	local curTime = getCalendarTime(date)
+	local date = C_DateAndTime.GetCurrentCalendarTime()
+	local curTime, order = getCalendarTime(date)
 
-	if self.timeToEvent - curTime < 0 then
+	if self.timeToEvent <= curTime then
 		self:updateList()
 	end
 
@@ -310,8 +317,12 @@ function calendar:setTooltip()
 
 			if e.icon then
 				title = (e.calendarType == "HOLIDAY" and iconStr or iconStrCustom):format(e.icon)..e.title
-			else
+			elseif e.calendarType == "RAID_LOCKOUT" then
+				title = iconLockOut..e.title
+			elseif e.calendarType ~= "HOLIDAY" then
 				title = CALENDAR_EVENTTYPE_TEXTURES[e.eventType]..e.title
+			else
+				title = noIcon..e.title
 			end
 
 			if e.t then
@@ -339,6 +350,7 @@ end
 
 
 function calendar:CALENDAR_UPDATE_EVENT_LIST()
+	if self.isUpdating then return end
 	self:updateList()
 	self:setTooltip()
 end
