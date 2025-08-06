@@ -119,23 +119,26 @@ end
 
 
 local getFormatTime do
-	local minute = MINUTE_ONELETTER_ABBR:gsub(" ", "")
+	local day = DAY_ONELETTER_ABBR:gsub(" ", "")
 	local hour = HOUR_ONELETTER_ABBR:gsub(" ", "")
-	local hstr = (" (%s %s)"):format(hour, minute)
-	local dstr = (" (%s %s %s)"):format(DAY_ONELETTER_ABBR:gsub(" ", ""), hour, minute)
+	local minute = MINUTE_ONELETTER_ABBR:gsub(" ", "")
+	local dstr = ("%s %s |cff808080|||r "):format(day, hour)
+	local hstr = ("|cffff732b%s %s|r |cff808080|||r "):format(hour, minute)
+	local mstr = ("|cffff732b%s|r |cff808080|||r "):format(minute)
 	function getFormatTime(tstmp)
 		local d,h,m = ChatFrame_TimeBreakDown(tstmp)
 		if d > 0 then
-			return dstr:format(d,h,m)
-		else
+			return dstr:format(d,h)
+		elseif h > 0 then
 			return hstr:format(h,m)
+		else
+			return mstr:format(m)
 		end
-		--TIME_DAYHOURMINUTESECOND
 	end
 end
 
 
-local function getColoredTitle(e)
+local function updateEventAttr(e)
 	local colorStr
 	if e.order == 2 then
 		colorStr = "|cff80b5fd%s|r"
@@ -144,7 +147,21 @@ local function getColoredTitle(e)
 	else
 		colorStr = "|cff808080%s|r"
 	end
-	return colorStr:format(e.title)
+	e.title = colorStr:format(e.title)
+
+	local startDate = FormatShortDate(e.startTime.monthDay, e.startTime.month)
+	if e.calendarType == "HOLIDAY" then
+		local endDate = FormatShortDate(e.endTime.monthDay, e.endTime.month)
+		e.dateStr = ("|cff80b5fd%s - %s|r"):format(startDate, endDate)
+	else
+		if e.calendarType ~= "RAID_LOCKOUT" then
+			local inviteStatusInfo = CalendarUtil.GetCalendarInviteStatusInfo(e.inviteStatus)
+			e.title = e.title.." "..inviteStatusInfo.color:WrapTextInColorCode("("..inviteStatusInfo.name..")")
+		elseif e.difficultyName ~= "" then
+			e.title = DUNGEON_NAME_WITH_DIFFICULTY:format(e.title, e.difficultyName)
+		end
+		e.dateStr = ("|cff80b5fd%s %s|r"):format(startDate, GameTime_GetFormattedTime(e.startTime.hour, e.startTime.minute, true))
+	end
 end
 
 
@@ -207,22 +224,7 @@ function calendar:setEventList(day, order)
 				self.timeToEvent = e.t
 			end
 
-			local startDate = FormatShortDate(e.startTime.monthDay, e.startTime.month)
-			if e.calendarType == "HOLIDAY" then
-				local endDate = FormatShortDate(e.endTime.monthDay, e.endTime.month)
-				e.dateStr = ("|cff80b5fd%s - %s|r"):format(startDate, endDate)
-			else
-				if e.calendarType ~= "RAID_LOCKOUT" then
-					local inviteStatusInfo = CalendarUtil.GetCalendarInviteStatusInfo(e.inviteStatus)
-					e.inviteStatusStr = " "..inviteStatusInfo.color:WrapTextInColorCode("("..inviteStatusInfo.name..")")
-				elseif e.difficultyName ~= "" then
-					e.title = DUNGEON_NAME_WITH_DIFFICULTY:format(e.title, e.difficultyName)
-				end
-				e.dateStr = ("|cff80b5fd%s %s|r"):format(startDate, GameTime_GetFormattedTime(e.startTime.hour, e.startTime.minute, true))
-			end
-
-			e.title = getColoredTitle(e)
-
+			updateEventAttr(e)
 			self.list[#self.list + 1] = e
 			self.list[k] = e
 		end
@@ -258,26 +260,26 @@ function calendar:updateList()
 
 	-- current
 	C_Calendar.SetAbsMonth(self.date.month, self.date.year)
-	local numDays = C_Calendar.GetMonthInfo().numDays
 	self:setEventList(day, 1)
 
 	-- before
 	local beforeDay = day - self.db.previousDays
 	if beforeDay < 1 then
-		local monthInfo = C_Calendar.GetMonthInfo(-1)
-		self:setEventListRange(-1, monthInfo.numDays + beforeDay, monthInfo.numDays, 0)
+		local numDays = C_Calendar.GetMonthInfo(-1).numDays
+		self:setEventListRange(-1, numDays + beforeDay, numDays, 0)
 		beforeDay = 1
 	end
 	self:setEventListRange(0, beforeDay, day - 1, 0)
 
 	-- after
 	local afterDay = day + self.db.followingDays
+	local numDays = C_Calendar.GetMonthInfo().numDays
 	if afterDay > numDays then
-		local monthInfo = C_Calendar.GetMonthInfo(1)
+		self:setEventListRange(0, day + 1, numDays, 2)
 		self:setEventListRange(1, 1, afterDay - numDays, 2)
-		afterDay = numDays
+	else
+		self:setEventListRange(0, day + 1, afterDay, 2)
 	end
-	self:setEventListRange(0, day + 1, afterDay, 2)
 
 	self:restoreBackup()
 
@@ -309,35 +311,27 @@ function calendar:setTooltip()
 	GameTooltip:AddDoubleLine(EVENTS_LABEL, FormatShortDate(date.monthDay, date.month, date.year).." "..GameTime_GetFormattedTime(date.hour, date.minute, true))
 	GameTooltip:AddLine(" ")
 
-	local num = 0
+	local num, icon = 0
 	for i = 1, #self.list do
-		local e, title = self.list[i]
+		local e = self.list[i]
 		if e.order == 1 or self.db[self.eventType[e.order]] then
 			num = num + 1
 
 			if e.icon then
-				title = (e.calendarType == "HOLIDAY" and iconStr or iconStrCustom):format(e.icon)..e.title
+				icon = (e.calendarType == "HOLIDAY" and iconStr or iconStrCustom):format(e.icon)
 			elseif e.calendarType == "RAID_LOCKOUT" then
-				title = iconLockOut..e.title
+				icon = iconLockOut
 			elseif e.calendarType ~= "HOLIDAY" then
-				title = CALENDAR_EVENTTYPE_TEXTURES[e.eventType]..e.title
+				icon = CALENDAR_EVENTTYPE_TEXTURES[e.eventType]
 			else
-				title = noIcon..e.title
-			end
-
-			if e.t then
-				title = title..getFormatTime(e.t - curTime)
-			end
-
-			if e.inviteStatusStr then
-				title = title..e.inviteStatusStr
+				icon = noIcon
 			end
 
 			if order ~= e.order then
 				if order ~= nil then GameTooltip:AddLine(" ") end
 				order = e.order
 			end
-			GameTooltip:AddDoubleLine(title, e.dateStr)
+			GameTooltip:AddDoubleLine(icon..e.title, e.t and getFormatTime(e.t - curTime)..e.dateStr or e.dateStr)
 		end
 	end
 
