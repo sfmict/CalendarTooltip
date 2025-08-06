@@ -122,3 +122,76 @@ end)
 local category, layout = Settings.RegisterCanvasLayoutCategory(calendar, addon)
 category.ID = addon
 Settings.RegisterAddOnCategory(category)
+
+
+-- OPEN CONFIG
+function calendar:openConfig()
+	if SettingsPanel:IsVisible() and self:IsVisible() then
+		if InCombatLockdown() then return end
+		HideUIPanel(SettingsPanel)
+	else
+		Settings.OpenToCategory(addon, true)
+	end
+end
+
+
+SLASH_CALENDARTOOLTIPCONFIG1 = "/calendartooltip"
+SLASH_CALENDARTOOLTIPCONFIG2 = "/ct"
+SlashCmdList["CALENDARTOOLTIPCONFIG"] = function() calendar:openConfig() end
+
+
+-- DATA BROKER
+calendar:RegisterEvent("PLAYER_LOGIN")
+function calendar:PLAYER_LOGIN()
+	self:UnregisterEvent("PLAYER_LOGIN")
+	self.PLAYER_LOGIN = nil
+	local ldb = LibStub("LibDataBroker-1.1", true)
+	if ldb then
+		local updateFrame = CreateFrame("FRAME")
+		updateFrame:Hide()
+		updateFrame:SetScript("OnUpdate", function() calendar:setTooltip() end)
+
+		local iconCoords = {}
+		local function getTexCoord()
+			local day = C_DateAndTime.GetCurrentCalendarTime().monthDay
+			if day ~= updateFrame.day then
+				updateFrame.day = day
+				local atlasInfo = C_Texture.GetAtlasInfo("ui-hud-calendar-"..day.."-up")
+				iconCoords[1] = atlasInfo.leftTexCoord
+				iconCoords[2] = atlasInfo.rightTexCoord - 4/256
+				iconCoords[3] = atlasInfo.topTexCoord
+				iconCoords[4] = atlasInfo.bottomTexCoord - 4/256
+			end
+			return iconCoords
+		end
+
+		self.ldbButton = ldb:NewDataObject(addon, {
+			type = "data source",
+			text = addon,
+			icon = 4618663,
+			iconCoords = getTexCoord(),
+			OnClick = function(_, button)
+				if button == "RightButton" then
+					calendar:openConfig()
+				elseif not InCombatLockdown() then
+					ToggleCalendar()
+				end
+			end,
+			OnEnter = function(self)
+				calendar.ldbButton.iconCoords = getTexCoord()
+				calendar:RegisterEvent("CALENDAR_UPDATE_EVENT_LIST")
+				calendar:updateList()
+				C_Calendar.OpenCalendar()
+				GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+				calendar:setTooltip()
+				GameTooltip:Show()
+				updateFrame:Show()
+			end,
+			OnLeave = function()
+				calendar:UnregisterEvent("CALENDAR_UPDATE_EVENT_LIST")
+				updateFrame:Hide()
+				GameTooltip:Hide()
+			end,
+		})
+	end
+end
