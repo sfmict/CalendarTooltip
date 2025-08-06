@@ -13,6 +13,6 @@ Convenient events display
 * Setting the range of days for events to be displayed
 * Shows the start/end time of the event
 
-![](https://i.imgur.com/wsPrEXg.png)
+![](https://i.imgur.com/28Tkntj.png)
 
 Download [Curse page](https://www.curseforge.com/wow/addons/calendartooltip) or [Wago page](https://addons.wago.io/addons/calendartooltip)
