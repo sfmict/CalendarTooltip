@@ -14,6 +14,14 @@ local CALENDAR_EVENTTYPE_TEXTURES = {
 	[Enum.CalendarEventType.Meeting] = "|TInterface\\Calendar\\MeetingIcon:18|t ",
 	[Enum.CalendarEventType.Other] = "|TInterface\\Calendar\\UI-Calendar-Event-Other:18|t ",
 }
+calendar.isMainline = WOW_PROJECT_MAINLINE == WOW_PROJECT_ID
+calendar.FILTER_CVARS = {
+	calendar.isMainline and "calendarShowHolidays" or "calendarShowResets",
+	"calendarShowDarkmoon",
+	"calendarShowLockouts",
+	"calendarShowWeeklyHolidays",
+	"calendarShowBattlegrounds",
+}
 
 
 calendar:SetScript("OnEvent", function(self, event, ...) self[event](self, ...) end)
@@ -29,26 +37,17 @@ function calendar:ADDON_LOADED(addonName)
 	self.db = CalendarTooltipDB
 	self.db.previousDays = self.db.previousDays or 3
 	self.db.followingDays = self.db.followingDays or 6
-	if self.db.calendarShowHolidays == nil then
-		self.db.calendarShowHolidays = true
-	end
-	if self.db.calendarShowDarkmoon == nil then
-		self.db.calendarShowDarkmoon = true
-	end
-	if self.db.calendarShowLockouts == nil then
-		self.db.calendarShowLockouts = true
-	end
-	if self.db.calendarShowWeeklyHolidays == nil then
-		self.db.calendarShowWeeklyHolidays = true
-	end
-	if self.db.calendarShowBattlegrounds == nil then
-		self.db.calendarShowBattlegrounds = true
-	end
 	if self.db.showFuture == nil then
 		self.db.showFuture = true
 	end
 	if self.db.showPast == nil then
 		self.db.showPast = true
+	end
+
+	for i, cvar in ipairs(self.FILTER_CVARS) do
+		if self.db[cvar] == nil then
+			self.db[cvar] = true
+		end
 	end
 
 	self.eventType = {[0] = "showPast",	[2] = "showFuture"}
@@ -60,34 +59,25 @@ end
 function calendar:setBackup()
 	self.isUpdating = true
 
-	local backup = self.filterBackup
-	backup.calendarShowHolidays = GetCVar("calendarShowHolidays")
-	backup.calendarShowDarkmoon = GetCVar("calendarShowDarkmoon")
-	backup.calendarShowLockouts = GetCVar("calendarShowLockouts")
-	backup.calendarShowWeeklyHolidays = GetCVar("calendarShowWeeklyHolidays")
-	backup.calendarShowBattlegrounds = GetCVar("calendarShowBattlegrounds")
-
 	self.dateBackup = C_Calendar.GetMonthInfo()
 	if CalendarFrame then
 		CalendarFrame:UnregisterEvent("CALENDAR_UPDATE_EVENT_LIST")
 		CalendarEventPickerFrame:UnregisterEvent("CALENDAR_UPDATE_EVENT_LIST")
 	end
 
-	SetCVar("calendarShowHolidays", self.db.calendarShowHolidays)
-	SetCVar("calendarShowDarkmoon", self.db.calendarShowDarkmoon)
-	SetCVar("calendarShowLockouts", self.db.calendarShowLockouts)
-	SetCVar("calendarShowWeeklyHolidays", self.db.calendarShowWeeklyHolidays)
-	SetCVar("calendarShowBattlegrounds", self.db.calendarShowBattlegrounds)
+	local backup = self.filterBackup
+	for i, cvar in ipairs(self.FILTER_CVARS) do
+		backup[cvar] = GetCVar(cvar)
+		SetCVar(cvar, self.db[cvar])
+	end
 end
 
 
 function calendar:restoreBackup()
 	local backup = self.filterBackup
-	SetCVar("calendarShowHolidays", backup.calendarShowHolidays)
-	SetCVar("calendarShowDarkmoon", backup.calendarShowDarkmoon)
-	SetCVar("calendarShowLockouts", backup.calendarShowLockouts)
-	SetCVar("calendarShowWeeklyHolidays", backup.calendarShowWeeklyHolidays)
-	SetCVar("calendarShowBattlegrounds", backup.calendarShowBattlegrounds)
+	for i, cvar in ipairs(self.FILTER_CVARS) do
+		SetCVar(cvar, backup[cvar])
+	end
 
 	C_Calendar.SetAbsMonth(self.dateBackup.month, self.dateBackup.year)
 	if CalendarFrame then
@@ -138,6 +128,11 @@ local getFormatTime do
 end
 
 
+local function isSignUpEvent(calendarType, inviteType)
+	return
+end
+
+
 local function updateEventAttr(e)
 	local colorStr
 	if e.order == 2 then
@@ -147,19 +142,26 @@ local function updateEventAttr(e)
 	else
 		colorStr = "|cff808080%s|r"
 	end
-	e.title = colorStr:format(e.title)
 
 	local startDate = FormatShortDate(e.startTime.monthDay, e.startTime.month)
 	if e.calendarType == "HOLIDAY" then
+		e.title = colorStr:format(e.title)
 		local endDate = FormatShortDate(e.endTime.monthDay, e.endTime.month)
 		e.dateStr = ("|cff80b5fd%s - %s|r"):format(startDate, endDate)
 	else
-		if e.calendarType ~= "RAID_LOCKOUT" then
+		if e.difficultyName == nil or e.difficultyName == "" then
+			e.title = colorStr:format(e.title)
+		else
+			e.title = colorStr:format(DUNGEON_NAME_WITH_DIFFICULTY:format(e.title, e.difficultyName))
+		end
+
+		if (e.calendarType == "GUILD_EVENT" or e.calendarType == "COMMUNITY_EVENT")
+		and e.inviteType == Enum.CalendarInviteType.Signup
+		then
 			local inviteStatusInfo = CalendarUtil.GetCalendarInviteStatusInfo(e.inviteStatus)
 			e.title = e.title.." "..inviteStatusInfo.color:WrapTextInColorCode("("..inviteStatusInfo.name..")")
-		elseif e.difficultyName ~= "" then
-			e.title = DUNGEON_NAME_WITH_DIFFICULTY:format(e.title, e.difficultyName)
 		end
+
 		e.dateStr = ("|cff80b5fd%s %s|r"):format(startDate, GameTime_GetFormattedTime(e.startTime.hour, e.startTime.minute, true))
 	end
 end
@@ -169,12 +171,9 @@ function calendar:setEventList(day, order)
 	for i = 1, C_Calendar.GetNumDayEvents(0, day) do
 		local e = C_Calendar.GetDayEvent(0, day, i)
 		local k = getEventKey(e)
+		local ce = self.list[k]
 
-		if self.list[k] then
-			if e.sequenceType ~= "ONGOING" and self.list[k].sequenceType == "ONGOING" then
-				self.list[k].icon = C_Calendar.GetHolidayInfo(0, day, i).texture
-			end
-		else
+		if ce == nil then
 			local eInfo = C_Calendar.GetHolidayInfo(0, day, i)
 			e.icon = eInfo and eInfo.texture or e.iconTexture
 
@@ -224,9 +223,18 @@ function calendar:setEventList(day, order)
 				self.timeToEvent = e.t
 			end
 
+			if self.db.showID then
+				e.title = e.title.." |cff808080("..e.eventID..")|r"
+			end
+
 			updateEventAttr(e)
 			self.list[#self.list + 1] = e
 			self.list[k] = e
+
+		elseif ce.sequenceType == "ONGOING" and e.sequenceType ~= "ONGOING" then
+			ce.icon = C_Calendar.GetHolidayInfo(0, day, i).texture
+		elseif ce.icon == nil and e.iconTexture ~= nil then
+			ce.icon = e.iconTexture
 		end
 	end
 end

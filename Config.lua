@@ -23,74 +23,59 @@ calendar:SetScript("OnShow", function(self)
 	title:SetJustifyH("LEFT")
 	title:SetText(L["%s Configuration"]:format(addon))
 
-	-- HOLIDAYS
-	local holidays = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
-	holidays:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -30)
-	holidays:SetChecked(self.db.calendarShowHolidays)
-	holidays.Text:SetText(CALENDAR_FILTER_HOLIDAYS)
-	holidays:HookScript("OnClick", function(btn)
-		self.db.calendarShowHolidays = btn:GetChecked()
-	end)
+	-- CVARS
+	local cvars = {
+		self.isMainline and CALENDAR_FILTER_HOLIDAYS or CALENDAR_FILTER_RAID_RESETS,
+		CALENDAR_FILTER_DARKMOON,
+		CALENDAR_FILTER_RAID_LOCKOUTS,
+		CALENDAR_FILTER_WEEKLY_HOLIDAYS,
+		CALENDAR_FILTER_BATTLEGROUND,
+	}
+	local onClick = function(btn) self.db[btn.value] = btn:GetChecked() end
+	local maxWidth = 0
 
-	-- DARKMOON
-	local darkmoon = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
-	darkmoon:SetPoint("TOPLEFT", holidays, "BOTTOMLEFT", 0, 0)
-	darkmoon:SetChecked(self.db.calendarShowDarkmoon)
-	darkmoon.Text:SetText(CALENDAR_FILTER_DARKMOON)
-	darkmoon:HookScript("OnClick", function(btn)
-		self.db.calendarShowDarkmoon = btn:GetChecked()
-	end)
-
-	-- RAID LOCKOUT
-	local raidLockout = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
-	raidLockout:SetPoint("TOPLEFT", darkmoon, "BOTTOMLEFT", 0, 0)
-	raidLockout:SetChecked(self.db.calendarShowLockouts)
-	raidLockout.Text:SetText(CALENDAR_FILTER_RAID_LOCKOUTS)
-	raidLockout:HookScript("OnClick", function(btn)
-		self.db.calendarShowLockouts = btn:GetChecked()
-	end)
-
-	-- WEEKLY HOLIDAYS
-	local weeklyHolidays = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
-	weeklyHolidays:SetPoint("TOPLEFT", raidLockout, "BOTTOMLEFT", 0, 0)
-	weeklyHolidays:SetChecked(self.db.calendarShowWeeklyHolidays)
-	weeklyHolidays.Text:SetText(CALENDAR_FILTER_WEEKLY_HOLIDAYS)
-	weeklyHolidays:HookScript("OnClick", function(btn)
-		self.db.calendarShowWeeklyHolidays = btn:GetChecked()
-	end)
-
-	-- BATTLEGROUND
-	local battleground = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
-	battleground:SetPoint("TOPLEFT", weeklyHolidays, "BOTTOMLEFT", 0, 0)
-	battleground:SetChecked(self.db.calendarShowBattlegrounds)
-	battleground.Text:SetText(CALENDAR_FILTER_BATTLEGROUND)
-	battleground:HookScript("OnClick", function(btn)
-		self.db.calendarShowBattlegrounds = btn:GetChecked()
-	end)
-
-	local maxWidth = math.max(holidays.Text:GetWidth(), darkmoon.Text:GetWidth(), raidLockout.Text:GetWidth(), weeklyHolidays.Text:GetWidth(), battleground.Text:GetWidth())
+	for i, cvar in ipairs(self.FILTER_CVARS) do
+		local btn = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
+		if i == 1 then
+			btn:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -30)
+		else
+			btn:SetPoint("TOPLEFT", cvars[i-1], "BOTTOMLEFT", 0, 0)
+		end
+		btn:SetChecked(self.db[cvar])
+		btn.Text:SetText(cvars[i])
+		btn.value = cvar
+		btn:HookScript("OnClick", onClick)
+		maxWidth = math.max(maxWidth, btn.Text:GetWidth())
+		cvars[i] = btn
+	end
 
 	-- PAST
 	local past = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
-	past:SetPoint("LEFT", holidays, "RIGHT", maxWidth + 40, 0)
+	past:SetPoint("LEFT", cvars[1], "RIGHT", maxWidth + 40, 0)
 	past:SetChecked(self.db.showPast)
 	past.Text:SetText(L["Show Past"])
-	past:HookScript("OnClick", function(btn)
-		self.db.showPast = btn:GetChecked()
-	end)
+	past.value = "showPast"
+	past:HookScript("OnClick", onClick)
 
 	-- FUTURE
 	local future = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
 	future:SetPoint("TOPLEFT", past, "BOTTOMLEFT", 0, 0)
 	future:SetChecked(self.db.showFuture)
 	future.Text:SetText(L["Show Future"])
-	future:HookScript("OnClick", function(btn)
-		self.db.showFuture = btn:GetChecked()
-	end)
+	future.value = "showFuture"
+	future:HookScript("OnClick", onClick)
+
+	-- SHOW ID
+	local showID = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
+	showID:SetPoint("TOPLEFT", future, "BOTTOMLEFT", 0, 0)
+	showID:SetChecked(self.db.showID)
+	showID.Text:SetText(L["Show ID"])
+	showID.value = "showID"
+	showID:HookScript("OnClick", onClick)
 
 	-- PAST DAYS
 	local pastSlider = CreateFrame("SLIDER", nil, self, "CalendarTooltipSliderTemplate")
-	pastSlider:SetPoint("TOPLEFT", battleground, "BOTTOMLEFT", 0, -30)
+	pastSlider:SetPoint("TOPLEFT", cvars[#cvars], "BOTTOMLEFT", 0, -30)
 	pastSlider.text:SetText(L["Past Days"])
 	pastSlider.RightText:Show()
 	pastSlider.OnSliderValueChanged = function(btn, value)
@@ -151,25 +136,9 @@ function calendar:PLAYER_LOGIN()
 		updateFrame:Hide()
 		updateFrame:SetScript("OnUpdate", function() calendar:setTooltip() end)
 
-		local iconCoords = {}
-		local function getTexCoord()
-			local day = C_DateAndTime.GetCurrentCalendarTime().monthDay
-			if day ~= updateFrame.day then
-				updateFrame.day = day
-				local atlasInfo = C_Texture.GetAtlasInfo("ui-hud-calendar-"..day.."-up")
-				iconCoords[1] = atlasInfo.leftTexCoord
-				iconCoords[2] = atlasInfo.rightTexCoord - 4/256
-				iconCoords[3] = atlasInfo.topTexCoord
-				iconCoords[4] = atlasInfo.bottomTexCoord - 4/256
-			end
-			return iconCoords
-		end
-
-		self.ldbButton = ldb:NewDataObject(addon, {
+		local data = {
 			type = "data source",
 			text = addon,
-			icon = 4618663,
-			iconCoords = getTexCoord(),
 			OnClick = function(_, button)
 				if button == "RightButton" then
 					calendar:openConfig()
@@ -177,7 +146,31 @@ function calendar:PLAYER_LOGIN()
 					ToggleCalendar()
 				end
 			end,
-			OnEnter = function(self)
+			OnLeave = function()
+				calendar:UnregisterEvent("CALENDAR_UPDATE_EVENT_LIST")
+				updateFrame:Hide()
+				GameTooltip:Hide()
+			end,
+		}
+
+		if calendar.isMainline then
+			local iconCoords = {}
+			local function getTexCoord()
+				local day = C_DateAndTime.GetCurrentCalendarTime().monthDay
+				if day ~= updateFrame.day then
+					updateFrame.day = day
+					local atlasInfo = C_Texture.GetAtlasInfo("ui-hud-calendar-"..day.."-up")
+					iconCoords[1] = atlasInfo.leftTexCoord
+					iconCoords[2] = atlasInfo.rightTexCoord - 4/256
+					iconCoords[3] = atlasInfo.topTexCoord
+					iconCoords[4] = atlasInfo.bottomTexCoord - 4/256
+				end
+				return iconCoords
+			end
+
+			data.icon = 4618663
+			data.iconCoords = getTexCoord()
+			data.OnEnter = function(self)
 				calendar.ldbButton.iconCoords = getTexCoord()
 				calendar:RegisterEvent("CALENDAR_UPDATE_EVENT_LIST")
 				calendar:updateList()
@@ -186,12 +179,21 @@ function calendar:PLAYER_LOGIN()
 				calendar:setTooltip()
 				GameTooltip:Show()
 				updateFrame:Show()
-			end,
-			OnLeave = function()
-				calendar:UnregisterEvent("CALENDAR_UPDATE_EVENT_LIST")
-				updateFrame:Hide()
-				GameTooltip:Hide()
-			end,
-		})
+			end
+		else
+			data.icon = 235489
+			data.iconCoords = {0, .390625, 0, .78125}
+			data.OnEnter = function(self)
+				calendar:RegisterEvent("CALENDAR_UPDATE_EVENT_LIST")
+				calendar:updateList()
+				C_Calendar.OpenCalendar()
+				GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+				calendar:setTooltip()
+				GameTooltip:Show()
+				updateFrame:Show()
+			end
+		end
+
+		self.ldbButton = ldb:NewDataObject(addon, data)
 	end
 end

@@ -6,6 +6,7 @@ L["author"] = "Author"
 L["%s Configuration"] = "%s Configuration"
 L["Show Past"] = "Show Past"
 L["Show Future"] = "Show Future"
+L["Show ID"] = "Show ID"
 L["Past Days"] = "Past Days"
 L["Future Days"] = "Future Days"
 
