@@ -7,6 +7,7 @@ calendar:Hide()
 calendar:SetScript("OnShow", function(self)
 	self:SetScript("OnShow", function(self)
 		self:SetPoint("TOPLEFT", -12, 8)
+		self:refreshConfig()
 	end)
 	self:SetPoint("TOPLEFT", -12, 8)
 
@@ -23,6 +24,15 @@ calendar:SetScript("OnShow", function(self)
 	title:SetJustifyH("LEFT")
 	title:SetText(L["%s Configuration"]:format(addon))
 
+	local checkbox_OnClick = function(btn) self.db[btn.value] = btn:GetChecked() end
+	local function createCheckbox(text, value)
+		local btn = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
+		btn.Text:SetText(text)
+		btn.value = value
+		btn:HookScript("OnClick", checkbox_OnClick)
+		return btn
+	end
+
 	-- CVARS
 	local cvars = {
 		self.isMainline and CALENDAR_FILTER_HOLIDAYS or CALENDAR_FILTER_RAID_RESETS,
@@ -31,47 +41,30 @@ calendar:SetScript("OnShow", function(self)
 		CALENDAR_FILTER_WEEKLY_HOLIDAYS,
 		CALENDAR_FILTER_BATTLEGROUND,
 	}
-	local onClick = function(btn) self.db[btn.value] = btn:GetChecked() end
 	local maxWidth = 0
 
 	for i, cvar in ipairs(self.FILTER_CVARS) do
-		local btn = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
+		local btn = createCheckbox(cvars[i], cvar)
 		if i == 1 then
 			btn:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -30)
 		else
-			btn:SetPoint("TOPLEFT", cvars[i-1], "BOTTOMLEFT", 0, 0)
+			btn:SetPoint("TOPLEFT", cvars[i-1], "BOTTOMLEFT")
 		end
-		btn:SetChecked(self.db[cvar])
-		btn.Text:SetText(cvars[i])
-		btn.value = cvar
-		btn:HookScript("OnClick", onClick)
 		maxWidth = math.max(maxWidth, btn.Text:GetWidth())
 		cvars[i] = btn
 	end
 
 	-- PAST
-	local past = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
+	local past = createCheckbox(L["Show Past"], "showPast")
 	past:SetPoint("LEFT", cvars[1], "RIGHT", maxWidth + 40, 0)
-	past:SetChecked(self.db.showPast)
-	past.Text:SetText(L["Show Past"])
-	past.value = "showPast"
-	past:HookScript("OnClick", onClick)
 
 	-- FUTURE
-	local future = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
-	future:SetPoint("TOPLEFT", past, "BOTTOMLEFT", 0, 0)
-	future:SetChecked(self.db.showFuture)
-	future.Text:SetText(L["Show Future"])
-	future.value = "showFuture"
-	future:HookScript("OnClick", onClick)
+	local future = createCheckbox(L["Show Future"], "showFuture")
+	future:SetPoint("TOPLEFT", past, "BOTTOMLEFT")
 
 	-- SHOW ID
-	local showID = CreateFrame("CheckButton", nil, self, "CalendarTooltipCheckButtonTemplate")
-	showID:SetPoint("TOPLEFT", future, "BOTTOMLEFT", 0, 0)
-	showID:SetChecked(self.db.showID)
-	showID.Text:SetText(L["Show ID"])
-	showID.value = "showID"
-	showID:HookScript("OnClick", onClick)
+	local showID = createCheckbox(L["Show ID"], "showID")
+	showID:SetPoint("TOPLEFT", future, "BOTTOMLEFT")
 
 	-- PAST DAYS
 	local pastSlider = CreateFrame("SLIDER", nil, self, "CalendarTooltipSliderTemplate")
@@ -83,9 +76,6 @@ calendar:SetScript("OnShow", function(self)
 		btn.RightText:SetText(value)
 	end
 	pastSlider:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, pastSlider.OnSliderValueChanged, pastSlider)
-	local pastOptions = Settings.CreateSliderOptions(0, 28, 1)
-	pastSlider:Init(self.db.previousDays, pastOptions.minValue, pastOptions.maxValue, pastOptions.steps, pastOptions.formatters)
-	pastSlider.RightText:SetText(self.db.previousDays)
 
 	-- FUTURE DAYS
 	local futureSlider = CreateFrame("SLIDER", nil, self, "CalendarTooltipSliderTemplate")
@@ -97,9 +87,110 @@ calendar:SetScript("OnShow", function(self)
 		btn.RightText:SetText(value)
 	end
 	futureSlider:RegisterCallback(MinimalSliderWithSteppersMixin.Event.OnValueChanged, futureSlider.OnSliderValueChanged, futureSlider)
-	local futureOptions = Settings.CreateSliderOptions(0, 28, 1)
-	futureSlider:Init(self.db.followingDays, futureOptions.minValue, futureOptions.maxValue, futureOptions.steps, futureOptions.formatters)
-	futureSlider.RightText:SetText(self.db.followingDays)
+
+	-- COLORS
+	local function getHexColor(r,g,b)
+		return ("%.2x%.2x%.2x"):format(Round(r * 255), Round(g * 255), Round(b * 255))
+	end
+
+	local function color_OnClick(btn)
+		PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+		btn.r, btn.g, btn.b = self:getRGBColor(self.db[btn.value])
+		ColorPickerFrame:SetupColorPickerAndShow(btn)
+	end
+
+	local function createSwatchBtn(value)
+		local btn =  CreateFrame("BUTTON", nil, self)
+		btn:SetSize(30, 30)
+		btn.text = btn:CreateFontString(nil, "ARTWORK", "GameFontHighlightLeft")
+		btn.text:SetPoint("LEFT", btn, "RIGHT")
+		btn.text:SetText(L[value])
+		btn:SetNormalTexture("Interface/ChatFrame/ChatFrameColorSwatch")
+		btn.normalTex = btn:GetNormalTexture()
+		btn.value = value
+		btn:SetScript("OnClick", color_OnClick)
+		btn.swatchFunc = function()
+			local r,g,b = ColorPickerFrame:GetColorRGB()
+			btn.normalTex:SetVertexColor(r,g,b)
+			self.db[value] = getHexColor(r,g,b)
+			self:setColors()
+		end
+		btn.cancelFunc = function(color)
+			btn.normalTex:SetVertexColor(color.r, color.g, color.b)
+			self.db[value] = getHexColor(color.r, color.g, color.b)
+			self:setColors()
+		end
+		return btn
+	end
+
+	local titleColor = createSwatchBtn("titleColor")
+	titleColor:SetPoint("TOPLEFT", futureSlider, "BOTTOMLEFT", 0, -30)
+
+	local dateColor = createSwatchBtn("dateColor")
+	dateColor:SetPoint("TOPLEFT", titleColor, "BOTTOMLEFT")
+
+	local timeColor = createSwatchBtn("timeColor")
+	timeColor:SetPoint("TOPLEFT", dateColor, "BOTTOMLEFT")
+
+	local timeDayColor = createSwatchBtn("timeDayColor")
+	timeDayColor:SetPoint("TOPLEFT", timeColor, "BOTTOMLEFT")
+
+	local colorWidth = math.max(titleColor.text:GetWidth(), dateColor.text:GetWidth(), timeColor.text:GetWidth(), timeDayColor.text:GetWidth())
+
+	local pastColor = createSwatchBtn("pastColor")
+	pastColor:SetPoint("LEFT", titleColor, "RIGHT", colorWidth + 40, 0)
+
+	local ongoingColor = createSwatchBtn("ongoingColor")
+	ongoingColor:SetPoint("TOPLEFT", pastColor, "BOTTOMLEFT")
+
+	local futureColor = createSwatchBtn("futureColor")
+	futureColor:SetPoint("TOPLEFT", ongoingColor, "BOTTOMLEFT")
+
+	-- RESET COLORS
+	local resetButton = CreateFrame("BUTTON", nil, self, "UIPanelButtonTemplate")
+	resetButton:SetPoint("TOPLEFT", timeDayColor, "BOTTOMLEFT", 0, -10)
+	resetButton:SetText(L["Reset Colors"])
+	resetButton:SetWidth(resetButton:GetFontString():GetStringWidth() + 20)
+	resetButton:SetScript("OnClick", function()
+		PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+		self.db.titleColor = self:getDefColor("titleColor")
+		self.db.dateColor = self:getDefColor("dateColor")
+		self.db.timeColor = self:getDefColor("timeColor")
+		self.db.timeDayColor = self:getDefColor("timeDayColor")
+		self.db.pastColor = self:getDefColor("pastColor")
+		self.db.ongoingColor = self:getDefColor("ongoingColor")
+		self.db.futureColor = self:getDefColor("futureColor")
+		self:setColors()
+		self:refreshConfig()
+	end)
+
+	-- REFRESH
+	function self:refreshConfig()
+		for i, btn in ipairs(cvars) do
+			btn:SetChecked(self.db[btn.value])
+		end
+
+		past:SetChecked(self.db[past.value])
+		future:SetChecked(self.db[future.value])
+		showID:SetChecked(self.db[showID.value])
+
+		local pastOptions = Settings.CreateSliderOptions(0, 28, 1)
+		pastSlider:Init(self.db.previousDays, pastOptions.minValue, pastOptions.maxValue, pastOptions.steps, pastOptions.formatters)
+		pastSlider.RightText:SetText(self.db.previousDays)
+
+		local futureOptions = Settings.CreateSliderOptions(0, 28, 1)
+		futureSlider:Init(self.db.followingDays, futureOptions.minValue, futureOptions.maxValue, futureOptions.steps, futureOptions.formatters)
+		futureSlider.RightText:SetText(self.db.followingDays)
+
+		titleColor.normalTex:SetVertexColor(self:getRGBColor(self.db.titleColor))
+		dateColor.normalTex:SetVertexColor(self:getRGBColor(self.db.dateColor))
+		timeColor.normalTex:SetVertexColor(self:getRGBColor(self.db.timeColor))
+		timeDayColor.normalTex:SetVertexColor(self:getRGBColor(self.db.timeDayColor))
+		pastColor.normalTex:SetVertexColor(self:getRGBColor(self.db.pastColor))
+		ongoingColor.normalTex:SetVertexColor(self:getRGBColor(self.db.ongoingColor))
+		futureColor.normalTex:SetVertexColor(self:getRGBColor(self.db.futureColor))
+	end
+	self:refreshConfig()
 end)
 
 
@@ -130,7 +221,7 @@ calendar:RegisterEvent("PLAYER_LOGIN")
 function calendar:PLAYER_LOGIN()
 	self:UnregisterEvent("PLAYER_LOGIN")
 	self.PLAYER_LOGIN = nil
-	local ldb = LibStub("LibDataBroker-1.1", true)
+	local ldb = LibStub and LibStub("LibDataBroker-1.1", true)
 	if ldb then
 		local updateFrame = CreateFrame("FRAME")
 		updateFrame:Hide()
@@ -147,8 +238,8 @@ function calendar:PLAYER_LOGIN()
 				end
 			end,
 			OnLeave = function()
-				calendar:UnregisterEvent("CALENDAR_UPDATE_EVENT_LIST")
 				updateFrame:Hide()
+				calendar:onLeave()
 				GameTooltip:Hide()
 			end,
 		}
@@ -172,24 +263,20 @@ function calendar:PLAYER_LOGIN()
 			data.iconCoords = getTexCoord()
 			data.OnEnter = function(self)
 				calendar.ldbButton.iconCoords = getTexCoord()
-				calendar:RegisterEvent("CALENDAR_UPDATE_EVENT_LIST")
-				calendar:updateList()
-				C_Calendar.OpenCalendar()
 				GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
-				calendar:setTooltip()
+				GameTooltip:AddLine(" ")
 				GameTooltip:Show()
+				calendar:onEnter()
 				updateFrame:Show()
 			end
 		else
 			data.icon = 235489
 			data.iconCoords = {0, .390625, 0, .78125}
 			data.OnEnter = function(self)
-				calendar:RegisterEvent("CALENDAR_UPDATE_EVENT_LIST")
-				calendar:updateList()
-				C_Calendar.OpenCalendar()
 				GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
-				calendar:setTooltip()
+				GameTooltip:AddLine(" ")
 				GameTooltip:Show()
+				calendar:onEnter()
 				updateFrame:Show()
 			end
 		end

@@ -5,6 +5,7 @@ local iconStrCustom = "|T%s:18|t "
 local iconLockOut = "|T340023:18:18:2:0:32:32:0:28:0:28|t "
 local noIcon = "|TInterface/Icons/INV_Misc_QuestionMark:18|t "
 local calendar = CreateFrame("FRAME", "CalendarTooltipAddon")
+local titleR, titleG, titleB, dstr, hstr, mstr
 
 
 local CALENDAR_EVENTTYPE_TEXTURES = {
@@ -37,6 +38,7 @@ function calendar:ADDON_LOADED(addonName)
 	self.db = CalendarTooltipDB
 	self.db.previousDays = self.db.previousDays or 3
 	self.db.followingDays = self.db.followingDays or 6
+
 	if self.db.showFuture == nil then
 		self.db.showFuture = true
 	end
@@ -50,9 +52,56 @@ function calendar:ADDON_LOADED(addonName)
 		end
 	end
 
-	self.eventType = {[0] = "showPast",	[2] = "showFuture"}
+	self.db.titleColor = self.db.titleColor or self:getDefColor("titleColor")
+	self.db.dateColor = self.db.dateColor or self:getDefColor("dateColor")
+	self.db.timeColor = self.db.timeColor or self:getDefColor("timeColor")
+	self.db.timeDayColor = self.db.timeDayColor or self:getDefColor("timeDayColor")
+	self.db.pastColor = self.db.pastColor or self:getDefColor("pastColor")
+	self.db.ongoingColor = self.db.ongoingColor or self:getDefColor("ongoingColor")
+	self.db.futureColor = self.db.futureColor or self:getDefColor("futureColor")
+
+	self.eventType = {"showPast", nil, "showFuture"}
 	self.list = {}
 	self.filterBackup = {}
+	self:setColors()
+end
+
+
+function calendar:getDefColor(value)
+	if value == "titleColor" or value == "timeColor" then
+		return "ffd200"
+	elseif value == "dateColor" then
+		return "80b5fd"
+	elseif value == "timeDayColor" then
+		return "ff732b"
+	elseif value == "pastColor" then
+		return "808080"
+	elseif value == "ongoingColor" then
+		return "eeeeee"
+	elseif value == "futureColor" then
+		return "80b5fd"
+	end
+end
+
+
+function calendar:getRGBColor(hex)
+	return ExtractColorValueFromHex(hex, 1), ExtractColorValueFromHex(hex, 3), ExtractColorValueFromHex(hex, 5)
+end
+
+
+function calendar:setColors()
+	titleR, titleG, titleB = self:getRGBColor(self.db.titleColor)
+	self.dateColor1 = "|cff"..self.db.dateColor.."%s - %s|r"
+	self.dateColor2 = "|cff"..self.db.dateColor.."%s %s|r"
+	local day = DAY_ONELETTER_ABBR:gsub(" ", "")
+	local hour = HOUR_ONELETTER_ABBR:gsub(" ", "")
+	local minute = MINUTE_ONELETTER_ABBR:gsub(" ", "")
+	dstr = ("|cff%s%s %s|r |cff808080|||r "):format(self.db.timeColor, day, hour)
+	hstr = ("|cff%s%s %s|r |cff808080|||r "):format(self.db.timeDayColor, hour, minute)
+	mstr = ("|cff%s%s|r |cff808080|||r "):format(self.db.timeDayColor, minute)
+	self[1] = "|cff"..self.db.pastColor.."%s|r"
+	self[2] = "|cff"..self.db.ongoingColor.."%s|r"
+	self[3] = "|cff"..self.db.futureColor.."%s|r"
 end
 
 
@@ -108,61 +157,40 @@ local function getEventKey(e)
 end
 
 
-local getFormatTime do
-	local day = DAY_ONELETTER_ABBR:gsub(" ", "")
-	local hour = HOUR_ONELETTER_ABBR:gsub(" ", "")
-	local minute = MINUTE_ONELETTER_ABBR:gsub(" ", "")
-	local dstr = ("%s %s |cff808080|||r "):format(day, hour)
-	local hstr = ("|cffff732b%s %s|r |cff808080|||r "):format(hour, minute)
-	local mstr = ("|cffff732b%s|r |cff808080|||r "):format(minute)
-	function getFormatTime(tstmp)
-		local d,h,m = ChatFrame_TimeBreakDown(tstmp)
-		if d > 0 then
-			return dstr:format(d,h)
-		elseif h > 0 then
-			return hstr:format(h,m)
-		else
-			return mstr:format(m)
-		end
-	end
-end
-
-
-local function isSignUpEvent(calendarType, inviteType)
-	return
-end
-
-
-local function updateEventAttr(e)
-	local colorStr
-	if e.order == 2 then
-		colorStr = "|cff80b5fd%s|r"
-	elseif e.order == 1 then
-		colorStr = "|cffeeeeee%s|r"
+function getFormatTime(tstmp)
+	local d,h,m = ChatFrame_TimeBreakDown(tstmp)
+	if d > 0 then
+		return dstr:format(d,h)
+	elseif h > 0 then
+		return hstr:format(h,m)
 	else
-		colorStr = "|cff808080%s|r"
+		return mstr:format(m)
 	end
+end
 
+
+function calendar:updateEventAttr(e)
 	local startDate = FormatShortDate(e.startTime.monthDay, e.startTime.month)
 	if e.calendarType == "HOLIDAY" then
-		e.title = colorStr:format(e.title)
+		e.title = self[e.order]:format(e.title)
 		local endDate = FormatShortDate(e.endTime.monthDay, e.endTime.month)
-		e.dateStr = ("|cff80b5fd%s - %s|r"):format(startDate, endDate)
+		e.dateStr = self.dateColor1:format(startDate, endDate)
 	else
 		if e.difficultyName == nil or e.difficultyName == "" then
-			e.title = colorStr:format(e.title)
+			e.title = self[e.order]:format(e.title)
 		else
-			e.title = colorStr:format(DUNGEON_NAME_WITH_DIFFICULTY:format(e.title, e.difficultyName))
+			e.title = self[e.order]:format(DUNGEON_NAME_WITH_DIFFICULTY:format(e.title, e.difficultyName))
 		end
 
 		if (e.calendarType == "GUILD_EVENT" or e.calendarType == "COMMUNITY_EVENT")
 		and e.inviteType == Enum.CalendarInviteType.Signup
 		then
-			local inviteStatusInfo = CalendarUtil.GetCalendarInviteStatusInfo(e.inviteStatus)
-			e.title = e.title.." "..inviteStatusInfo.color:WrapTextInColorCode("("..inviteStatusInfo.name..")")
+			local inviteInfo = CalendarUtil.GetCalendarInviteStatusInfo(e.inviteStatus)
+			e.title = e.title.." "..inviteInfo.color:WrapTextInColorCode("("..inviteInfo.name..")")
 		end
 
-		e.dateStr = ("|cff80b5fd%s %s|r"):format(startDate, GameTime_GetFormattedTime(e.startTime.hour, e.startTime.minute, true))
+		local startTime = GameTime_GetFormattedTime(e.startTime.hour, e.startTime.minute, true)
+		e.dateStr = self.dateColor2:format(startDate, startTime)
 	end
 end
 
@@ -184,9 +212,9 @@ function calendar:setEventList(day, order)
 				e.et = e.st
 			end
 
-			if order ~= 1 then
+			if order ~= 2 then
 				e.order = order
-				if order == 2 then
+				if order == 3 then
 					e.t = e.st
 				end
 			elseif e.sequenceType == "ONGOING" then
@@ -195,7 +223,7 @@ function calendar:setEventList(day, order)
 			elseif e.sequenceType == "START" then
 				if e.st > self.curTime then
 					e.t = e.st
-					e.order = 2
+					e.order = 3
 				else
 					e.t = e.et
 					e.order = order
@@ -205,7 +233,7 @@ function calendar:setEventList(day, order)
 					e.t = e.et
 					e.order = order
 				else
-					e.order = 0
+					e.order = 1
 				end
 			elseif e.calendarType == "HOLIDAY" then
 				e.t = e.et
@@ -213,9 +241,9 @@ function calendar:setEventList(day, order)
 			else
 				if e.st > self.curTime then
 					e.t = e.st
-					e.order = 2
+					e.order = 3
 				else
-					e.order = 0
+					e.order = 1
 				end
 			end
 
@@ -227,7 +255,7 @@ function calendar:setEventList(day, order)
 				e.title = e.title.." |cff808080("..e.eventID..")|r"
 			end
 
-			updateEventAttr(e)
+			self:updateEventAttr(e)
 			self.list[#self.list + 1] = e
 			self.list[k] = e
 
@@ -268,25 +296,25 @@ function calendar:updateList()
 
 	-- current
 	C_Calendar.SetAbsMonth(self.date.month, self.date.year)
-	self:setEventList(day, 1)
+	self:setEventList(day, 2)
 
 	-- before
 	local beforeDay = day - self.db.previousDays
 	if beforeDay < 1 then
 		local numDays = C_Calendar.GetMonthInfo(-1).numDays
-		self:setEventListRange(-1, numDays + beforeDay, numDays, 0)
+		self:setEventListRange(-1, numDays + beforeDay, numDays, 1)
 		beforeDay = 1
 	end
-	self:setEventListRange(0, beforeDay, day - 1, 0)
+	self:setEventListRange(0, beforeDay, day - 1, 1)
 
 	-- after
 	local afterDay = day + self.db.followingDays
 	local numDays = C_Calendar.GetMonthInfo().numDays
 	if afterDay > numDays then
-		self:setEventListRange(0, day + 1, numDays, 2)
-		self:setEventListRange(1, 1, afterDay - numDays, 2)
+		self:setEventListRange(0, day + 1, numDays, 3)
+		self:setEventListRange(1, 1, afterDay - numDays, 3)
 	else
-		self:setEventListRange(0, day + 1, afterDay, 2)
+		self:setEventListRange(0, day + 1, afterDay, 3)
 	end
 
 	self:restoreBackup()
@@ -294,7 +322,7 @@ function calendar:updateList()
 	-- sort
 	sort(self.list, function(a, b)
 		if a.order ~= b.order then return a.order < b.order end
-		if a.order == 2 then
+		if a.order == 3 then
 			if a.st ~= b.st then return a.st < b.st end
 			if a.et ~= b.et then return a.et < b.et end
 		else
@@ -309,20 +337,20 @@ end
 
 function calendar:setTooltip()
 	local date = C_DateAndTime.GetCurrentCalendarTime()
-	local curTime, order = getCalendarTime(date)
+	local curTime = getCalendarTime(date)
 
 	if self.timeToEvent <= curTime then
 		self:updateList()
 	end
 
 	GameTooltip:ClearLines()
-	GameTooltip:AddDoubleLine(EVENTS_LABEL, FormatShortDate(date.monthDay, date.month, date.year).." "..GameTime_GetFormattedTime(date.hour, date.minute, true))
+	GameTooltip:AddDoubleLine(EVENTS_LABEL, FormatShortDate(date.monthDay, date.month, date.year).." "..GameTime_GetFormattedTime(date.hour, date.minute, true), titleR, titleG, titleB, titleR, titleG, titleB)
 	GameTooltip:AddLine(" ")
 
-	local num, icon = 0
+	local num, icon, order = 0
 	for i = 1, #self.list do
 		local e = self.list[i]
-		if e.order == 1 or self.db[self.eventType[e.order]] then
+		if e.order == 2 or self.db[self.eventType[e.order]] then
 			num = num + 1
 
 			if e.icon then
@@ -358,14 +386,20 @@ function calendar:CALENDAR_UPDATE_EVENT_LIST()
 end
 
 
-GameTimeFrame:HookScript("OnEnter", function()
-	calendar:RegisterEvent("CALENDAR_UPDATE_EVENT_LIST")
-	calendar:updateList()
+function calendar:onEnter()
+	self:RegisterEvent("CALENDAR_UPDATE_EVENT_LIST")
+	self:updateList()
 	C_Calendar.OpenCalendar()
-end)
-GameTimeFrame:HookScript("OnLeave", function()
-	calendar:UnregisterEvent("CALENDAR_UPDATE_EVENT_LIST")
-end)
+end
+
+
+function calendar:onLeave()
+	self:UnregisterEvent("CALENDAR_UPDATE_EVENT_LIST")
+end
+
+
+GameTimeFrame:HookScript("OnEnter", function() calendar:onEnter() end)
+GameTimeFrame:HookScript("OnLeave", function() calendar:onLeave() end)
 GameTimeFrame:HookScript("OnUpdate", function(self)
 	if GameTooltip:IsOwned(self) then
 		calendar:setTooltip()
