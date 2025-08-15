@@ -4,8 +4,9 @@ local iconStrCustom = "|T%s:18|t "
 --local iconLockOut = "|T198873:18|t "
 local iconLockOut = "|T340023:18:18:2:0:32:32:0:28:0:28|t "
 local noIcon = "|TInterface/Icons/INV_Misc_QuestionMark:18|t "
+local pastID, presentID, futureID = 1, 2, 3
 local calendar = CreateFrame("FRAME", "CalendarTooltipAddon")
-local titleR, titleG, titleB, dstr, hstr, mstr
+local titleR, titleG, titleB, ddColor, dtColor, dstr, hstr, mstr
 
 
 local CALENDAR_EVENTTYPE_TEXTURES = {
@@ -60,7 +61,7 @@ function calendar:ADDON_LOADED(addonName)
 	self.db.ongoingColor = self.db.ongoingColor or self:getDefColor("ongoingColor")
 	self.db.futureColor = self.db.futureColor or self:getDefColor("futureColor")
 
-	self.eventType = {"showPast", nil, "showFuture"}
+	self.tenseType = {[pastID] = "showPast", [futureID] = "showFuture"}
 	self.list = {}
 	self.filterBackup = {}
 	self:setColors()
@@ -70,7 +71,7 @@ end
 function calendar:getDefColor(value)
 	if value == "titleColor" or value == "timeColor" then
 		return "ffd200"
-	elseif value == "dateColor" then
+	elseif value == "dateColor" or value == "futureColor" then
 		return "80b5fd"
 	elseif value == "timeDayColor" then
 		return "ff732b"
@@ -78,8 +79,6 @@ function calendar:getDefColor(value)
 		return "808080"
 	elseif value == "ongoingColor" then
 		return "eeeeee"
-	elseif value == "futureColor" then
-		return "80b5fd"
 	end
 end
 
@@ -91,17 +90,17 @@ end
 
 function calendar:setColors()
 	titleR, titleG, titleB = self:getRGBColor(self.db.titleColor)
-	self.dateColor1 = "|cff"..self.db.dateColor.."%s - %s|r"
-	self.dateColor2 = "|cff"..self.db.dateColor.."%s %s|r"
+	ddColor = "|cff"..self.db.dateColor.."%s - %s|r"
+	dtColor = "|cff"..self.db.dateColor.."%s %s|r"
 	local day = DAY_ONELETTER_ABBR:gsub(" ", "")
 	local hour = HOUR_ONELETTER_ABBR:gsub(" ", "")
 	local minute = MINUTE_ONELETTER_ABBR:gsub(" ", "")
 	dstr = ("|cff%s%s %s|r |cff808080|||r "):format(self.db.timeColor, day, hour)
 	hstr = ("|cff%s%s %s|r |cff808080|||r "):format(self.db.timeDayColor, hour, minute)
 	mstr = ("|cff%s%s|r |cff808080|||r "):format(self.db.timeDayColor, minute)
-	self[1] = "|cff"..self.db.pastColor.."%s|r"
-	self[2] = "|cff"..self.db.ongoingColor.."%s|r"
-	self[3] = "|cff"..self.db.futureColor.."%s|r"
+	self[pastID] = "|cff"..self.db.pastColor.."%s|r"
+	self[presentID] = "|cff"..self.db.ongoingColor.."%s|r"
+	self[futureID] = "|cff"..self.db.futureColor.."%s|r"
 end
 
 
@@ -172,14 +171,14 @@ end
 function calendar:updateEventAttr(e)
 	local startDate = FormatShortDate(e.startTime.monthDay, e.startTime.month)
 	if e.calendarType == "HOLIDAY" then
-		e.title = self[e.order]:format(e.title)
+		e.title = self[e.tenseID]:format(e.title)
 		local endDate = FormatShortDate(e.endTime.monthDay, e.endTime.month)
-		e.dateStr = self.dateColor1:format(startDate, endDate)
+		e.dateStr = ddColor:format(startDate, endDate)
 	else
 		if e.difficultyName == nil or e.difficultyName == "" then
-			e.title = self[e.order]:format(e.title)
+			e.title = self[e.tenseID]:format(e.title)
 		else
-			e.title = self[e.order]:format(DUNGEON_NAME_WITH_DIFFICULTY:format(e.title, e.difficultyName))
+			e.title = self[e.tenseID]:format(DUNGEON_NAME_WITH_DIFFICULTY:format(e.title, e.difficultyName))
 		end
 
 		if (e.calendarType == "GUILD_EVENT" or e.calendarType == "COMMUNITY_EVENT")
@@ -190,12 +189,12 @@ function calendar:updateEventAttr(e)
 		end
 
 		local startTime = GameTime_GetFormattedTime(e.startTime.hour, e.startTime.minute, true)
-		e.dateStr = self.dateColor2:format(startDate, startTime)
+		e.dateStr = dtColor:format(startDate, startTime)
 	end
 end
 
 
-function calendar:setEventList(day, order)
+function calendar:setEventList(day, tenseID)
 	for i = 1, C_Calendar.GetNumDayEvents(0, day) do
 		local e = C_Calendar.GetDayEvent(0, day, i)
 		local k = getEventKey(e)
@@ -212,38 +211,38 @@ function calendar:setEventList(day, order)
 				e.et = e.st
 			end
 
-			if order ~= 2 then
-				e.order = order
-				if order == 3 then
+			if tenseID ~= presentID then
+				e.tenseID = tenseID
+				if tenseID == futureID then
 					e.t = e.st
 				end
 			elseif e.sequenceType == "ONGOING" then
 					e.t = e.et
-					e.order = order
+					e.tenseID = tenseID
 			elseif e.sequenceType == "START" then
 				if e.st > self.curTime then
 					e.t = e.st
-					e.order = 3
+					e.tenseID = futureID
 				else
 					e.t = e.et
-					e.order = order
+					e.tenseID = tenseID
 				end
 			elseif e.sequenceType == "END" then
 				if e.et > self.curTime then
 					e.t = e.et
-					e.order = order
+					e.tenseID = tenseID
 				else
-					e.order = 1
+					e.tenseID = pastID
 				end
 			elseif e.calendarType == "HOLIDAY" then
 				e.t = e.et
-				e.order = order
+				e.tenseID = tenseID
 			else
 				if e.st > self.curTime then
 					e.t = e.st
-					e.order = 3
+					e.tenseID = futureID
 				else
-					e.order = 1
+					e.tenseID = pastID
 				end
 			end
 
@@ -268,7 +267,7 @@ function calendar:setEventList(day, order)
 end
 
 
-function calendar:setEventListRange(offset, startDay, endDay, order)
+function calendar:setEventListRange(offset, startDay, endDay, tenseID)
 	local month = self.date.month + offset
 	local year = self.date.year
 
@@ -281,7 +280,7 @@ function calendar:setEventListRange(offset, startDay, endDay, order)
 	end
 
 	C_Calendar.SetAbsMonth(month, year)
-	for day = startDay, endDay do self:setEventList(day, order) end
+	for day = startDay, endDay do self:setEventList(day, tenseID) end
 end
 
 
@@ -296,33 +295,33 @@ function calendar:updateList()
 
 	-- current
 	C_Calendar.SetAbsMonth(self.date.month, self.date.year)
-	self:setEventList(day, 2)
+	self:setEventList(day, presentID)
 
 	-- before
 	local beforeDay = day - self.db.previousDays
 	if beforeDay < 1 then
 		local numDays = C_Calendar.GetMonthInfo(-1).numDays
-		self:setEventListRange(-1, numDays + beforeDay, numDays, 1)
+		self:setEventListRange(-1, numDays + beforeDay, numDays, pastID)
 		beforeDay = 1
 	end
-	self:setEventListRange(0, beforeDay, day - 1, 1)
+	self:setEventListRange(0, beforeDay, day - 1, pastID)
 
 	-- after
 	local afterDay = day + self.db.followingDays
 	local numDays = C_Calendar.GetMonthInfo().numDays
 	if afterDay > numDays then
-		self:setEventListRange(0, day + 1, numDays, 3)
-		self:setEventListRange(1, 1, afterDay - numDays, 3)
+		self:setEventListRange(0, day + 1, numDays, futureID)
+		self:setEventListRange(1, 1, afterDay - numDays, futureID)
 	else
-		self:setEventListRange(0, day + 1, afterDay, 3)
+		self:setEventListRange(0, day + 1, afterDay, futureID)
 	end
 
 	self:restoreBackup()
 
 	-- sort
 	sort(self.list, function(a, b)
-		if a.order ~= b.order then return a.order < b.order end
-		if a.order == 3 then
+		if a.tenseID ~= b.tenseID then return a.tenseID < b.tenseID end
+		if a.tenseID == futureID then
 			if a.st ~= b.st then return a.st < b.st end
 			if a.et ~= b.et then return a.et < b.et end
 		else
@@ -337,6 +336,8 @@ end
 
 function calendar:setTooltip()
 	local date = C_DateAndTime.GetCurrentCalendarTime()
+	local curDateStr = FormatShortDate(date.monthDay, date.month, date.year)
+	local curTimeStr = GameTime_GetFormattedTime(date.hour, date.minute, true)
 	local curTime = getCalendarTime(date)
 
 	if self.timeToEvent <= curTime then
@@ -344,13 +345,13 @@ function calendar:setTooltip()
 	end
 
 	GameTooltip:ClearLines()
-	GameTooltip:AddDoubleLine(EVENTS_LABEL, FormatShortDate(date.monthDay, date.month, date.year).." "..GameTime_GetFormattedTime(date.hour, date.minute, true), titleR, titleG, titleB, titleR, titleG, titleB)
+	GameTooltip:AddDoubleLine(EVENTS_LABEL, curDateStr.." "..curTimeStr, titleR, titleG, titleB, titleR, titleG, titleB)
 	GameTooltip:AddLine(" ")
 
-	local num, icon, order = 0
+	local num, icon, tenseID = 0
 	for i = 1, #self.list do
 		local e = self.list[i]
-		if e.order == 2 or self.db[self.eventType[e.order]] then
+		if e.tenseID == presentID or self.db[self.tenseType[e.tenseID]] then
 			num = num + 1
 
 			if e.icon then
@@ -363,9 +364,9 @@ function calendar:setTooltip()
 				icon = noIcon
 			end
 
-			if order ~= e.order then
-				if order ~= nil then GameTooltip:AddLine(" ") end
-				order = e.order
+			if tenseID ~= e.tenseID then
+				if tenseID ~= nil then GameTooltip:AddLine(" ") end
+				tenseID = e.tenseID
 			end
 			GameTooltip:AddDoubleLine(icon..e.title, e.t and getFormatTime(e.t - curTime)..e.dateStr or e.dateStr)
 		end
