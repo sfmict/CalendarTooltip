@@ -196,7 +196,6 @@ end)
 
 -- ADD CATEGORY
 local category, layout = Settings.RegisterCanvasLayoutCategory(calendar, addon)
-category.ID = addon
 Settings.RegisterAddOnCategory(category)
 
 
@@ -206,7 +205,7 @@ function calendar:openConfig()
 		if InCombatLockdown() then return end
 		HideUIPanel(SettingsPanel)
 	else
-		Settings.OpenToCategory(addon, true)
+		Settings.OpenToCategory(category:GetID(), addon)
 	end
 end
 
