@@ -1,4 +1,5 @@
 local addon, ns = ...
+local issecretvalue = issecretvalue or function() end
 local iconStr = "|T%s:18:18:0:0:128:128:0:91:0:91|t "
 local iconStrCustom = "|T%s:18|t "
 --local iconLockOut = "|T198873:18|t "
@@ -197,6 +198,12 @@ end
 function calendar:setEventList(day, tenseID)
 	for i = 1, C_Calendar.GetNumDayEvents(0, day) do
 		local e = C_Calendar.GetDayEvent(0, day, i)
+
+		if issecretvalue(e.eventID) then
+			self.isSecret = true
+			return
+		end
+
 		local k = getEventKey(e)
 		local ce = self.list[k]
 
@@ -290,6 +297,7 @@ function calendar:updateList()
 	self.curTime = getCalendarTime(self.date)
 	local day = self.date.monthDay
 	wipe(self.list)
+	self.isSecret = nil
 
 	self:setBackup()
 
@@ -335,6 +343,7 @@ end
 
 
 function calendar:setTooltip()
+	if self.isSecret then return end
 	local date = C_DateAndTime.GetCurrentCalendarTime()
 	local curDateStr = FormatShortDate(date.monthDay, date.month, date.year)
 	local curTimeStr = GameTime_GetFormattedTime(date.hour, date.minute, true)
