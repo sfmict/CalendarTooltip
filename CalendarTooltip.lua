@@ -157,7 +157,7 @@ local function getEventKey(e)
 end
 
 
-function getFormatTime(tstmp)
+local function getFormatTime(tstmp)
 	local d,h,m = ChatFrame_TimeBreakDown(tstmp)
 	if d > 0 then
 		return dstr:format(d,h)
