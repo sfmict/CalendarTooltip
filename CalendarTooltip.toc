@@ -19,5 +19,5 @@
 locales.xml
 templates.xml
 CalendarTooltip.lua
-Filterdata[Game].lua
+FilterData[Game].lua
 Config.lua
