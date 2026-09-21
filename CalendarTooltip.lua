@@ -18,13 +18,6 @@ local CALENDAR_EVENTTYPE_TEXTURES = {
 	[Enum.CalendarEventType.Other] = "|TInterface\\Calendar\\UI-Calendar-Event-Other:18|t ",
 }
 calendar.isMainline = WOW_PROJECT_MAINLINE == WOW_PROJECT_ID
-calendar.FILTER_CVARS = {
-	calendar.isMainline and "calendarShowHolidays" or "calendarShowResets",
-	"calendarShowDarkmoon",
-	"calendarShowLockouts",
-	"calendarShowWeeklyHolidays",
-	"calendarShowBattlegrounds",
-}
 
 
 calendar:SetScript("OnEvent", function(self, event, ...) self[event](self, ...) end)

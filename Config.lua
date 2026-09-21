@@ -34,17 +34,11 @@ calendar:SetScript("OnShow", function(self)
 	end
 
 	-- CVARS
-	local cvars = {
-		self.isMainline and CALENDAR_FILTER_HOLIDAYS or CALENDAR_FILTER_RAID_RESETS,
-		CALENDAR_FILTER_DARKMOON,
-		CALENDAR_FILTER_RAID_LOCKOUTS,
-		CALENDAR_FILTER_WEEKLY_HOLIDAYS,
-		CALENDAR_FILTER_BATTLEGROUND,
-	}
+	local cvars = {}
 	local maxWidth = 0
 
 	for i, cvar in ipairs(self.FILTER_CVARS) do
-		local btn = createCheckbox(cvars[i], cvar)
+		local btn = createCheckbox(self.FILTER_TEXTS[i], cvar)
 		if i == 1 then
 			btn:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -30)
 		else
